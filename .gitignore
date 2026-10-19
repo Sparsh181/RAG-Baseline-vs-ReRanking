@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Model weights (auto-downloaded via sentence-transformers)
+models/
+
+# Python cache & Jupyter checkpoints
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+report.pdf

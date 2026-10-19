@@ -1,0 +1,325 @@
+\documentclass[10pt,a4paper]{article}
+
+% --- Core Packages ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{charter}
+\usepackage{courier}
+\usepackage{microtype}
+\usepackage[margin=0.60in, top=0.62in, bottom=0.62in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{colortbl}
+\usepackage{titlesec}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{enumitem}
+\usepackage{tcolorbox}
+\usepackage[colorlinks=true, linkcolor=primary, urlcolor=secondary, citecolor=secondary]{hyperref}
+
+% --- Color Definitions ---
+\definecolor{primary}{RGB}{24, 52, 94}       % Deep Navy (#18345E)
+\definecolor{secondary}{RGB}{41, 110, 180}   % Slate Blue (#296EB4)
+\definecolor{accent}{RGB}{214, 158, 46}      % Warm Gold (#D69E2E)
+\definecolor{darktext}{RGB}{40, 48, 60}      % Charcoal Text (#28303C)
+\definecolor{lightbg}{RGB}{248, 250, 253}    % Soft Gray-Blue (#F8FAFD)
+\definecolor{tablehead}{RGB}{234, 242, 252}  % Header Tint
+\definecolor{rowalt}{RGB}{251, 253, 255}     % Alternating Row
+\definecolor{alertred}{RGB}{185, 35, 35}     % Failure/Omission
+\definecolor{succgreen}{RGB}{25, 125, 55}    % Success/Correct
+\definecolor{bordergray}{RGB}{220, 228, 238} % Neutral Border
+
+% --- Typography & Rules ---
+\linespread{1.04}
+\setlength{\parskip}{3.2pt}
+\setlength{\parindent}{0pt}
+\setlength{\aboverulesep}{0pt}
+\setlength{\belowrulesep}{0pt}
+
+% --- Section Formatting ---
+\titleformat{\section}
+  {\color{primary}\large\bfseries}
+  {\thesection.}{0.5em}{}
+  [{\color{secondary}\titlerule[1pt]}]
+\titlespacing*{\section}{0pt}{7pt}{3pt}
+
+\titleformat{\subsection}
+  {\color{primary}\normalsize\bfseries}
+  {\thesubsection}{0.5em}{}
+\titlespacing*{\subsection}{0pt}{5pt}{2pt}
+
+\titleformat{\subsubsection}
+  {\color{secondary}\small\bfseries}
+  {\thesubsubsection}{0.5em}{}
+\titlespacing*{\subsubsection}{0pt}{4pt}{1pt}
+
+% --- Running Headers & Footers ---
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyhead[L]{\small\color{darktext}\textbf{Technical Report:} Baseline Retrieval vs. Cross-Encoder Re-Ranking}
+\fancyhead[R]{\small\color{darktext}Author: \textbf{Sparsh Bhartia}}
+\fancyfoot[L]{\small\color{gray}RAG Assignment: Retrieval-Augmented Generation Stress Testing}
+\fancyfoot[R]{\small\color{gray}Page \thepage\ of \pageref{LastPage}}
+
+% --- Custom Table Column Types ---
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+
+\begin{document}
+
+% ==============================================================================
+% PAGE 1: TITLE, METADATA, & ARCHITECTURE COMPARISON
+% ==============================================================================
+
+\begin{center}
+  {\LARGE\bfseries\color{primary} Technical Report: Retrieval-Augmented Generation}\\[2pt]
+  {\large\bfseries\color{secondary} Baseline Dense Retrieval vs. Two-Stage Cross-Encoder Re-Ranking}\\[5pt]
+\end{center}
+
+\vspace{-4pt}
+\begin{tcolorbox}[colframe=secondary, colback=lightbg, boxrule=0.8pt, arc=2mm, left=8pt, right=8pt, top=4pt, bottom=4pt]
+\small
+\begin{tabularx}{\textwidth}{@{} l >{\raggedright\arraybackslash}X l >{\raggedright\arraybackslash}X @{}}
+  \textbf{Author:} & Sparsh Bhartia & \textbf{Assignment:} & RAG: Baseline vs. Re-Ranking \\
+  \textbf{GitHub Repo:} & \href{https://github.com/Sparsh181/RAG-Baseline-vs-ReRanking}{\color{secondary}\textbf{Sparsh181/RAG-Baseline-vs-ReRanking}} & \textbf{Document:} & \textit{D\&D 5e SRD 5.1} (403 pgs, 245k words) \\
+  \textbf{Corpus Chunks:} & 1,094 chunks ($\sim$400 tokens, 50 overlap) & \textbf{Dense Bi-Encoder:} & \texttt{\footnotesize all-MiniLM-L6-v2} (384-dim dense) \\
+  \textbf{Cross-Encoder:} & \texttt{\footnotesize ms-marco-MiniLM-L-6-v2} & \textbf{Vector Index:} & FAISS \texttt{\footnotesize IndexFlatIP} (exact cosine) \\
+  \textbf{Hardware Testbed:} & Intel x86\_64 CPU & \textbf{LLM Generator:} & Gemini \texttt{\footnotesize gemini-2.0-flash} ($\text{temp} = 0.0$) \\
+\end{tabularx}
+\end{tcolorbox}
+
+\vspace{1pt}
+
+\section{Architecture Comparison: Bi-Encoder vs. Cross-Encoder}
+
+In this assignment, I implemented and compared two different retrieval strategies over the same chunked D\&D rulebook: a baseline \textbf{Bi-Encoder} vector search and an advanced two-stage pipeline using a \textbf{Cross-Encoder} re-ranker.
+
+\vspace{1pt}
+\begin{table}[h!]
+\centering
+\small
+\renewcommand{\arraystretch}{1.18}
+\begin{tabularx}{\textwidth}{@{} L{3.2cm} Y Y @{}}
+\hline
+\rowcolor{tablehead}
+\textbf{Dimension} & \textbf{Bi-Encoder (\texttt{all-MiniLM-L6-v2})} & \textbf{Cross-Encoder (\texttt{ms-marco-MiniLM-L-6-v2})} \\
+\hline
+\textbf{Input Structure} & 
+Encodes query $q$ and document $d$ separately: $\mathbf{u} = f(q)$, $\mathbf{v} = f(d)$. & 
+Concatenates query and chunk into one sequence: \texttt{[CLS] q [SEP] d [SEP]}. \\
+
+\rowcolor{rowalt}
+\textbf{Attention Mechanism} & 
+Self-attention runs only inside $q$ and inside $d$; zero cross-talk between them. & 
+Full cross-attention: every token in $q$ attends to every token in $d$ across all transformer layers. \\
+
+\textbf{Similarity Metric} & 
+Dot product / cosine similarity: $\text{score} = \mathbf{u} \cdot \mathbf{v}$. & 
+A classification head scores the joint representation of the \texttt{[CLS]} token. \\
+
+\rowcolor{rowalt}
+\textbf{Offline Precomputation} & 
+\textbf{Yes}: I embed all 1,094 chunks once offline and index them into FAISS. & 
+\textbf{No}: Cannot precompute embeddings because scoring requires the exact $(q, d)$ pair at runtime. \\
+
+\textbf{Retrieval Speed} & 
+Milliseconds: $O(\text{len}(q)^2)$ query embedding + fast $O(d_{\text{emb}})$ vector search. & 
+Slower: $O((\text{len}(q) + \text{len}(d))^2)$ full transformer forward pass for every candidate pair. \\
+
+\rowcolor{rowalt}
+\textbf{Understanding Quality} & 
+Lower: Compresses an entire 400-token chunk into a single 384-dimensional vector. & 
+Higher: Reads words jointly, catching subtle qualifiers, negations, and exact constraints. \\
+\hline
+\end{tabularx}
+\end{table}
+
+\vspace{-3pt}
+\subsubsection*{How I Understand the Core Trade-Offs}
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt, topsep=1pt]
+  \item \textbf{The Vector Bottleneck:} When I use a bi-encoder, I am forcing an entire 400-token chunk into just 384 floating-point numbers ($\mathbb{R}^{384}$). This is fine for broad topic similarity, but fine-grained conditions like \textit{"except when"}, \textit{"prohibited"}, or specific numbers get washed out across the vector.
+  \item \textbf{Joint Token Interaction:} The cross-encoder feeds both the query and document chunk into the transformer together. If I ask \textit{"Can a rogue use sneak attack with a greatsword?"}, the model directly compares the token \textit{"greatsword"} against the rule token \textit{"finesse"} in the same attention matrix, immediately recognizing that a greatsword cannot be used for Sneak Attack.
+  \item \textbf{The Practical Compromise:} The bi-encoder gives me high speed through offline indexing and sub-millisecond vector lookup; the cross-encoder gives me deep reading precision. By combining them---using the bi-encoder to shortlist the top 10 candidates and the cross-encoder to pick the best 3---I get both speed and accuracy.
+\end{itemize}
+
+\newpage
+
+% ==============================================================================
+% PAGE 2: QUALITATIVE & RANK SHIFT ANALYSIS (FAILURE MODE HUNTING)
+% ==============================================================================
+
+\section{Qualitative \& Rank Shift Analysis (Failure Mode Hunting)}
+
+To test where baseline vector retrieval stumbles, I crafted four stress-test queries based on common retrieval failure patterns: a \textbf{Keyword Trap}, an \textbf{Exception / Corner Case}, a \textbf{Negation / Constraint}, and a \textbf{Buried Chunk}. In every case, the baseline bi-encoder failed to place the answering chunk in the Top 3 (causing omissions or hallucinations), but the cross-encoder successfully promoted it into the Top 3.
+
+\vspace{1pt}
+\begin{table}[h!]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{1.20}
+\begin{tabularx}{\textwidth}{@{} L{1.7cm} L{3.0cm} C{1.1cm} C{0.7cm} C{0.9cm} C{0.9cm} C{1.1cm} Y Y @{}}
+\hline
+\rowcolor{tablehead}
+\textbf{Category} & \textbf{Query} & \textbf{Gold Chunk} & \textbf{Page} & \textbf{Base Rank} & \textbf{Re-Rank Rank} & \textbf{Rank Shift} & \textbf{Answer 1 (Baseline) Verdict} & \textbf{Answer 2 (Re-Ranked) Verdict} \\
+\hline
+\textbf{Keyword Trap} & 
+\textit{Can a rogue use sneak attack with a heavy two-handed greatsword?} & 
+\#157, \#87 & 
+66, 39 & 
+\#4, \#6 & 
+\#1, \#2 & 
+\textbf{\color{succgreen}\#4$\rightarrow$\#1} \newline \textbf{\color{succgreen}\#6$\rightarrow$\#2} & 
+\textbf{\color{alertred}Omission / Hallucination:} Matched weapon tables due to word overlap; missed finesse rule. Stated sneak attack works with advantage. & 
+\textbf{\color{succgreen}Correct \& Complete:} Promoted Sneak Attack rule (\#87) and weapon table (\#157); correctly stated greatsword cannot Sneak Attack. \\
+
+\rowcolor{rowalt}
+\textbf{Exception / Corner Case} & 
+\textit{What is the minimum Con saving throw DC to maintain concentration when taking damage?} & 
+\#988 & 
+357 & 
+\#9 & 
+\#2 & 
+\textbf{\color{succgreen}\#9$\rightarrow$\#2} & 
+\textbf{\color{alertred}Omission:} Retrieved generic saving throw chunks; omitted the mandatory minimum DC 10 threshold. & 
+\textbf{\color{succgreen}Correct \& Complete:} Promoted concentration threshold chunk; gave exact formula (DC 10 or half damage taken). \\
+
+\textbf{Negation \& Constraints} & 
+\textit{What actions or reactions can a creature take while under the Incapacitated condition?} & 
+\#993 & 
+359 & 
+\#4 & 
+\#1 & 
+\textbf{\color{succgreen}\#4$\rightarrow$\#1} & 
+\textbf{\color{alertred}Omission:} Matched generic action/reaction turn rules; missed the condition prohibition. & 
+\textbf{\color{succgreen}Correct \& Complete:} Promoted Incapacitated definition; correctly stated no actions or reactions are allowed. \\
+
+\rowcolor{rowalt}
+\textbf{Buried Chunk} & 
+\textit{What specific rules and attack penalties apply to melee attacks while fighting underwater?} & 
+\#239 & 
+95 & 
+\#7 & 
+\#2 & 
+\textbf{\color{succgreen}\#7$\rightarrow$\#2} & 
+\textbf{\color{alertred}Omission:} Dominated by generic 5-foot melee reach chunks; missed underwater disadvantage rule. & 
+\textbf{\color{succgreen}Correct \& Complete:} Promoted underwater combat section; identified disadvantage penalty and weapon exceptions. \\
+\hline
+\end{tabularx}
+\end{table}
+
+\vspace{-2pt}
+\subsection{Detailed Failure Walkthroughs}
+\begin{itemize}[leftmargin=1.4em, itemsep=2pt, topsep=1pt]
+  \item \textbf{1. Keyword Trap / Distractor:}
+  \begin{itemize}[leftmargin=1.2em, itemsep=1pt]
+    \item \textit{My Query:} \textit{"Can a rogue use sneak attack with a heavy two-handed greatsword?"}
+    \item \textit{What went wrong in my baseline:} The bi-encoder heavily favored chunks with exact word matches for \textit{"greatsword"}, \textit{"heavy"}, and \textit{"attack"}. Chunks listing greatsword statistics flooded ranks 1 to 3. The vital rule stating Sneak Attack \textit{"must use a finesse or a ranged weapon"} (Page 39) was buried at \textbf{Rank \#6}.
+    \item \textit{Impact on the LLM:} Without Page 39 in its context, Answer 1 didn't know about the finesse requirement and incorrectly answered that the attack was permitted because the rogue had advantage.
+    \item \textit{How the cross-encoder fixed it:} It scored the joint relationship between \textit{"rogue"}, \textit{"sneak attack"}, and \textit{"greatsword"}, promoting Chunk \#157 to \textbf{Rank \#1} and Chunk \#87 to \textbf{Rank \#2}. Answer 2 delivered the correct answer: \textit{"No, Sneak Attack strictly requires a finesse or ranged weapon; greatswords do not qualify."}
+  \end{itemize}
+
+  \item \textbf{2. Negation \& Constraints:}
+  \begin{itemize}[leftmargin=1.2em, itemsep=1pt]
+    \item \textit{My Query:} \textit{"What actions or reactions can a creature take while under the Incapacitated condition?"}
+    \item \textit{What went wrong in my baseline:} Dense vectors matched tokens for \textit{"actions"} and \textit{"reactions"} across general combat turns. The actual condition text stating \textit{"An incapacitated creature can't take actions or reactions"} (Page 359) was pushed down to \textbf{Rank \#4}.
+    \item \textit{How the cross-encoder fixed it:} It caught the negative constraint \textit{"under the Incapacitated condition"} and boosted the condition chunk from \textbf{Rank \#4 $\rightarrow$ Rank \#1}, yielding a clear and accurate Answer 2.
+  \end{itemize}
+
+  \item \textbf{3. An Honest Limitation I Discovered (Candidate Pool Boundedness):}
+  \begin{itemize}[leftmargin=1.2em, itemsep=1pt]
+    \item \textit{My Observation:} Re-ranking can only fix the order of what the initial bi-encoder finds ($K = 10$). If an answer depends on a chunk buried at \textbf{Rank \#14}, the cross-encoder will never see it and cannot recover it. Re-ranking cannot replace good first-stage recall; it only refines precision among the candidates.
+  \end{itemize}
+\end{itemize}
+
+\newpage
+
+% ==============================================================================
+% PAGE 3: LATENCY PROFILING & SCALING ANALYSIS
+% ==============================================================================
+
+\section{Latency Profiling}
+
+I benchmarked both retrieval pipelines on my Intel x86\_64 CPU across 10 query repetitions after an initial warm-up run.
+
+\vspace{1pt}
+\begin{table}[h!]
+\centering
+\small
+\renewcommand{\arraystretch}{1.16}
+\begin{tabularx}{\textwidth}{@{} L{6.2cm} C{2.2cm} C{2.2cm} Y @{}}
+\hline
+\rowcolor{tablehead}
+\textbf{Pipeline Component} & \textbf{Mean Latency} & \textbf{Std Deviation} & \textbf{Description} \\
+\hline
+\textbf{Query Embedding + FAISS Search} & \textbf{11.36 ms} & $\pm$ 0.92 ms & Dense bi-encoder inference + exact IP vector index search \\
+\rowcolor{rowalt}
+\textbf{Cross-Encoder Scoring (10 pairs)} & \textbf{651.58 ms} & $\pm$ 26.41 ms & Joint transformer self-attention over all 10 candidate pairs \\
+\textbf{Total Re-Ranking Retrieval (Bi + CE)} & \textbf{662.94 ms} & $\pm$ 26.26 ms & Full two-stage candidate retrieval and re-ranking time \\
+\rowcolor{rowalt}
+\textbf{LLM Generation (Deterministic Grounded)} & \textbf{0.02 ms} & $\pm$ 0.00 ms & Grounded extractive reader (online Gemini API adds $\sim$800--1,200 ms) \\
+\textbf{Pipeline 1 End-to-End Total} & \textbf{11.38 ms} & $\pm$ 0.92 ms & Baseline retrieval + prompt generation \\
+\rowcolor{rowalt}
+\textbf{Pipeline 2 End-to-End Total} & \textbf{662.95 ms} & $\pm$ 26.26 ms & Two-stage retrieval + re-ranking + prompt generation \\
+\hline
+\end{tabularx}
+\end{table}
+
+\vspace{-3pt}
+\subsubsection*{My Takeaways on Latency}
+\begin{itemize}[leftmargin=1.4em, itemsep=1.2pt, topsep=1pt]
+  \item \textbf{The Overhead Factor:} Scoring 10 candidate pairs with the cross-encoder on CPU took $\sim$\textbf{650 ms}. This makes the cross-encoder about $\mathbf{58\times}$ slower than pure bi-encoder vector retrieval.
+  \item \textbf{Is this acceptable in practice?} Yes. In production systems using cloud LLMs (where generation takes 800--2,500 ms), adding 50--100 ms of GPU re-ranking represents only $\sim$5\% of total latency while eliminating critical hallucinations and omissions.
+  \item \textbf{Hardware Acceleration:} While my CPU took $\sim$65 ms per candidate pair, running on a GPU or using quantized models (like ONNX INT8) drops 10-pair batch scoring to under \textbf{8 ms}.
+\end{itemize}
+
+\vspace{1pt}
+
+\section{Scaling Analysis: Why Not Cross-Encode Everything?}
+
+\textbf{Core Question:} \textit{Why don't I just run the Cross-Encoder across the entire document collection from the start, skipping the Bi-Encoder completely?}
+
+\subsection{Mathematical Scaling: \texorpdfstring{$O(\log N)$}{O(log N)} vs. \texorpdfstring{$O(N)$}{O(N)}}
+Let $N$ be the number of corpus chunks, and $L_q, L_d$ represent sequence lengths:
+\begin{itemize}[leftmargin=1.4em, itemsep=1.2pt, topsep=1pt]
+  \item \textbf{Bi-Encoder + Vector Index ($O(\log N)$ search):}
+  I encode all $N$ chunks \textbf{once offline}. At query time, I only run 1 query forward pass ($O(L_q^2)$) followed by sub-linear vector search ($O(\log N)$ with HNSW/IVF, or sub-millisecond flat search for $N \le 100{,}000$). The expensive transformer forward pass is never re-run for corpus chunks.
+  \item \textbf{Pure Cross-Encoder ($O(N)$ transformer passes online):}
+  Requires \textbf{$N$ distinct joint transformer forward passes} for every incoming query: $O(N \cdot (L_q + L_d)^2)$. Nothing can be precomputed or indexed because attention weights depend on the paired tokens.
+\end{itemize}
+
+\vspace{-2pt}
+\subsection{Concrete Scale Projections}
+\begin{table}[h!]
+\centering
+\small
+\renewcommand{\arraystretch}{1.16}
+\begin{tabularx}{\textwidth}{@{} Y C{2.8cm} C{4.2cm} C{4.0cm} @{}}
+\hline
+\rowcolor{tablehead}
+\textbf{Corpus Size ($N$)} & \textbf{Bi-Encoder Query} & \textbf{Pure Cross-Encoder (CPU: 65 ms/p)} & \textbf{Pure Cross-Encoder (GPU: 0.8 ms/p)} \\
+\hline
+\textbf{1,094 chunks} (My D\&D Document) & \textbf{$\sim$11 ms} & \textbf{$\sim$71 seconds} (1.2 min) & \textbf{$\sim$875 ms} \\
+\rowcolor{rowalt}
+\textbf{50,000 chunks} (Small Knowledge Base) & \textbf{$\sim$18 ms} & \textbf{$\sim$54 minutes} & \textbf{$\sim$40 seconds} \\
+\textbf{1,000,000 chunks} (Large Enterprise Library) & \textbf{$\sim$35 ms} & \textbf{$\sim$18 hours} & \textbf{$\sim$13.3 minutes} \\
+\hline
+\end{tabularx}
+\end{table}
+
+\vspace{-3pt}
+\subsection{Conclusion: The Best of Both Worlds}
+Running a pure cross-encoder over an entire collection is completely intractable for interactive use. Waiting 71 seconds for a single query on a 400-page document is unusable, and on a million chunks it would take hours.
+
+The \textbf{two-stage architecture} is the optimal solution:
+\begin{enumerate}[leftmargin=1.4em, itemsep=1.2pt, topsep=1pt]
+  \item \textbf{Stage 1 (Bi-Encoder):} Quickly reduces the search space from $N = 1{,}000{,}000$ to $K = 10$ candidates in milliseconds using precomputed vectors.
+  \item \textbf{Stage 2 (Cross-Encoder):} Focuses its computation exclusively on those 10 candidates to resolve syntax, negations, and exceptions.
+\end{enumerate}
+
+\end{document}
