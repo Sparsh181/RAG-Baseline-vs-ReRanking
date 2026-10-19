@@ -79,7 +79,8 @@
 
 \begin{center}
   {\LARGE\bfseries\color{primary} Technical Report: Retrieval-Augmented Generation}\\[2pt]
-  {\large\bfseries\color{secondary} Baseline Dense Retrieval vs. Two-Stage Cross-Encoder Re-Ranking}\\[5pt]
+  {\large\bfseries\color{secondary} Baseline Dense Retrieval vs. Two-Stage Cross-Encoder Re-Ranking}\\[3pt]
+  {\small\textbf{GitHub Repository:} \href{https://github.com/Sparsh181/RAG-Baseline-vs-ReRanking}{\color{secondary}\texttt{https://github.com/Sparsh181/RAG-Baseline-vs-ReRanking}}}\\[4pt]
 \end{center}
 
 \vspace{-4pt}
@@ -87,9 +88,9 @@
 \small
 \begin{tabularx}{\textwidth}{@{} l >{\raggedright\arraybackslash}X l >{\raggedright\arraybackslash}X @{}}
   \textbf{Author:} & Sparsh Bhartia & \textbf{Assignment:} & RAG: Baseline vs. Re-Ranking \\
-  \textbf{GitHub Repo:} & \href{https://github.com/Sparsh181/RAG-Baseline-vs-ReRanking}{\color{secondary}\textbf{Sparsh181/RAG-Baseline-vs-ReRanking}} & \textbf{Document:} & \textit{D\&D 5e SRD 5.1} (403 pgs, 245k words) \\
-  \textbf{Corpus Chunks:} & 1,094 chunks ($\sim$400 tokens, 50 overlap) & \textbf{Dense Bi-Encoder:} & \texttt{\footnotesize all-MiniLM-L6-v2} (384-dim dense) \\
-  \textbf{Cross-Encoder:} & \texttt{\footnotesize ms-marco-MiniLM-L-6-v2} & \textbf{Vector Index:} & FAISS \texttt{\footnotesize IndexFlatIP} (exact cosine) \\
+  \textbf{Selected Document:} & \textit{D\&D 5e SRD 5.1} (403 pgs, 245k words) & \textbf{Corpus Chunks:} & 1,094 chunks ($\sim$400 tokens, 50 overlap) \\
+  \textbf{Dense Bi-Encoder:} & \texttt{\footnotesize all-MiniLM-L6-v2} (384-dim dense) & \textbf{Cross-Encoder:} & \texttt{\footnotesize ms-marco-MiniLM-L-6-v2} \\
+  \textbf{Vector Index:} & FAISS \texttt{\footnotesize IndexFlatIP} (exact cosine) & \textbf{Candidate Pool:} & Top-$K = 10$ candidates re-ranked to Top 3 \\
   \textbf{Hardware Testbed:} & Intel x86\_64 CPU & \textbf{LLM Generator:} & Gemini \texttt{\footnotesize gemini-2.0-flash} ($\text{temp} = 0.0$) \\
 \end{tabularx}
 \end{tcolorbox}
